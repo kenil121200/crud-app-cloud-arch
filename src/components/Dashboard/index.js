@@ -6,27 +6,32 @@ import Table from './Table';
 import Add from './Add';
 import Edit from './Edit';
 
-import { employeesData } from '../../data';
+import { get_employees, delete_employee, delete_image } from '../../backend';
 
 const Dashboard = ({ setIsAuthenticated }) => {
-  const [employees, setEmployees] = useState(employeesData);
+  const [employees, setEmployees] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    const data = JSON.parse(localStorage.getItem('employees_data'));
-    if (data !== null && Object.keys(data).length !== 0) setEmployees(data);
+    const fetchEmployees = async () => {
+      const response = await get_employees();
+      if (response?.employeesList) {
+        setEmployees(response.employeesList);
+      }
+    };
+    fetchEmployees();
   }, []);
 
   const handleEdit = id => {
-    const [employee] = employees.filter(employee => employee.id === id);
+    const [employee] = employees.filter(employee => employee.uid === id);
 
     setSelectedEmployee(employee);
     setIsEditing(true);
   };
 
-  const handleDelete = id => {
+  const handleDelete = async (id) => {
     Swal.fire({
       icon: 'warning',
       title: 'Are you sure?',
@@ -34,9 +39,9 @@ const Dashboard = ({ setIsAuthenticated }) => {
       showCancelButton: true,
       confirmButtonText: 'Yes, delete it!',
       cancelButtonText: 'No, cancel!',
-    }).then(result => {
+    }).then(async result => {
       if (result.value) {
-        const [employee] = employees.filter(employee => employee.id === id);
+        const [employee] = employees.filter(employee => employee.uid === id);
 
         Swal.fire({
           icon: 'success',
@@ -46,9 +51,15 @@ const Dashboard = ({ setIsAuthenticated }) => {
           timer: 1500,
         });
 
-        const employeesCopy = employees.filter(employee => employee.id !== id);
-        localStorage.setItem('employees_data', JSON.stringify(employeesCopy));
-        setEmployees(employeesCopy);
+        const deletedEmployee = await delete_employee(id);
+        if (deletedEmployee) {
+          const deleteImageData = {
+            filename: `${id}.jpeg`,
+          };
+          await delete_image(deleteImageData);
+          const employeesCopy = employees.filter(employee => employee.uid !== id);
+          setEmployees(employeesCopy);
+        }
       }
     });
   };

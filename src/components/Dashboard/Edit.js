@@ -1,16 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
+import { edit_employee, get_image, upload_image } from '../../backend';
 
 const Edit = ({ employees, selectedEmployee, setEmployees, setIsEditing }) => {
-  const id = selectedEmployee.id;
-
+  const id = selectedEmployee.uid;
+  const uid = selectedEmployee.uid;
   const [firstName, setFirstName] = useState(selectedEmployee.firstName);
   const [lastName, setLastName] = useState(selectedEmployee.lastName);
   const [email, setEmail] = useState(selectedEmployee.email);
   const [salary, setSalary] = useState(selectedEmployee.salary);
   const [date, setDate] = useState(selectedEmployee.date);
+  const [image, setImage] = useState(null);
+  const [existingImage, setExistingImage] = useState(null);
 
-  const handleUpdate = e => {
+  useEffect(() => {
+    // Fetch the existing image
+    const fetchImage = async () => {
+      const data = {
+        filename: `${id}.jpeg`,
+      };
+      const response = await get_image(data);
+      if (response && response.image_data) {
+        setExistingImage(`data:image/jpeg;base64,${response.image_data}`);
+      }
+    };
+    fetchImage();
+  }, [id]);
+
+  const handleUpdate = async (e) => {
     e.preventDefault();
 
     if (!firstName || !lastName || !email || !salary || !date) {
@@ -22,6 +39,33 @@ const Edit = ({ employees, selectedEmployee, setEmployees, setIsEditing }) => {
       });
     }
 
+    if (image) {
+      const reader = new FileReader();
+      reader.readAsDataURL(image);
+      reader.onloadend = async () => {
+        const base64Image = reader.result.split(',')[1];
+        const uploadImageData = {
+          data: base64Image,
+          filename: `${id}.jpeg`,
+        };
+        const imageResponse = await upload_image(uploadImageData);
+        if (!imageResponse) {
+          return Swal.fire({
+            icon: 'error',
+            title: 'Error!',
+            text: 'Image upload failed.',
+            showConfirmButton: true,
+          });
+        }
+
+        await updateEmployeeDetails();
+      };
+    } else {
+      await updateEmployeeDetails();
+    }
+  };
+
+  const updateEmployeeDetails = async () => {
     const employee = {
       id,
       firstName,
@@ -29,16 +73,18 @@ const Edit = ({ employees, selectedEmployee, setEmployees, setIsEditing }) => {
       email,
       salary,
       date,
+      uid,
     };
 
+    const editedEmployee = await edit_employee(employee);
+
     for (let i = 0; i < employees.length; i++) {
-      if (employees[i].id === id) {
-        employees.splice(i, 1, employee);
+      if (employees[i].uid === editedEmployee.uid) {
+        employees.splice(i, 1, editedEmployee);
         break;
       }
     }
 
-    localStorage.setItem('employees_data', JSON.stringify(employees));
     setEmployees(employees);
     setIsEditing(false);
 
@@ -61,7 +107,7 @@ const Edit = ({ employees, selectedEmployee, setEmployees, setIsEditing }) => {
           type="text"
           name="firstName"
           value={firstName}
-          onChange={e => setFirstName(e.target.value)}
+          onChange={(e) => setFirstName(e.target.value)}
         />
         <label htmlFor="lastName">Last Name</label>
         <input
@@ -69,7 +115,7 @@ const Edit = ({ employees, selectedEmployee, setEmployees, setIsEditing }) => {
           type="text"
           name="lastName"
           value={lastName}
-          onChange={e => setLastName(e.target.value)}
+          onChange={(e) => setLastName(e.target.value)}
         />
         <label htmlFor="email">Email</label>
         <input
@@ -77,7 +123,7 @@ const Edit = ({ employees, selectedEmployee, setEmployees, setIsEditing }) => {
           type="email"
           name="email"
           value={email}
-          onChange={e => setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value)}
         />
         <label htmlFor="salary">Salary ($)</label>
         <input
@@ -85,7 +131,7 @@ const Edit = ({ employees, selectedEmployee, setEmployees, setIsEditing }) => {
           type="number"
           name="salary"
           value={salary}
-          onChange={e => setSalary(e.target.value)}
+          onChange={(e) => setSalary(e.target.value)}
         />
         <label htmlFor="date">Date</label>
         <input
@@ -93,7 +139,20 @@ const Edit = ({ employees, selectedEmployee, setEmployees, setIsEditing }) => {
           type="date"
           name="date"
           value={date}
-          onChange={e => setDate(e.target.value)}
+          onChange={(e) => setDate(e.target.value)}
+        />
+        <label htmlFor="image">Upload Image</label>
+        {existingImage && (
+          <div>
+            <img src={existingImage} alt="Existing" style={{ width: '100px', height: '100px' }} />
+          </div>
+        )}
+        <input
+          id="image"
+          type="file"
+          name="image"
+          accept="image/*"
+          onChange={(e) => setImage(e.target.files[0])}
         />
         <div style={{ marginTop: '30px' }}>
           <input type="submit" value="Update" />
